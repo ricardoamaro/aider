@@ -44,10 +44,50 @@ class MCPClient:
                 elif self.io:
                     self.io.tool_error(f"Invalid MCP server specification: {server_spec}")
         
-        # TODO: Handle built-in aider MCP server in Phase 2
+        # Handle built-in aider MCP server
         if hasattr(args, 'enable_aider_mcp_server') and args.enable_aider_mcp_server:
-            if self.io:
-                self.io.tool_warning("Built-in aider MCP server not yet implemented (Phase 2)")
+            try:
+                from .servers.aider_tools import is_server_available, start_aider_mcp_server
+                
+                if not is_server_available():
+                    if self.io:
+                        self.io.tool_warning(
+                            "Built-in aider MCP server not available. "
+                            "Install with: pip install fastmcp uvicorn"
+                        )
+                else:
+                    # Start server in background thread
+                    import threading
+                    
+                    def start_server():
+                        try:
+                            port = getattr(args, 'mcp_server_port', 8000)
+                            asyncio.run(start_aider_mcp_server(port))
+                        except Exception as e:
+                            if self.io:
+                                self.io.tool_error(f"Failed to start aider MCP server: {e}")
+                    
+                    server_thread = threading.Thread(target=start_server, daemon=True)
+                    server_thread.start()
+                    
+                    # Give server time to start
+                    await asyncio.sleep(1)
+                    
+                    # Add localhost server to configs
+                    port = getattr(args, 'mcp_server_port', 8000)
+                    localhost_config = MCPServerConfig(
+                        name="aider-tools",
+                        transport="websocket",
+                        url=f"ws://localhost:{port}/mcp"
+                    )
+                    server_configs.append(localhost_config)
+                    
+                    if self.io:
+                        self.io.tool_output(f"Started built-in aider MCP server on port {port}")
+                        
+            except ImportError as e:
+                if self.io:
+                    self.io.tool_warning(f"Could not start built-in MCP server: {e}")
         
         # Connect to configured servers
         if server_configs:
