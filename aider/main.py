@@ -969,6 +969,37 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     # Track auto-commits configuration
     analytics.event("auto_commits", enabled=bool(args.auto_commits))
 
+    # Setup MCP integration (Phase 1)
+    mcp_client = None
+    if not return_coder:  # Skip MCP in test/return mode
+        try:
+            from aider.mcp import MCPClient
+            mcp_client = MCPClient(io)
+            
+            # Check if any MCP options are specified
+            has_mcp_config = (
+                getattr(args, 'mcp_servers', None) or 
+                getattr(args, 'mcp_config', None) or 
+                getattr(args, 'enable_aider_mcp_server', False)
+            )
+            
+            if has_mcp_config:
+                import asyncio
+                connected = asyncio.run(mcp_client.setup_from_args(args))
+                if not connected:
+                    mcp_client = None
+        except ImportError:
+            if (getattr(args, 'mcp_servers', None) or 
+                getattr(args, 'mcp_config', None) or 
+                getattr(args, 'enable_aider_mcp_server', False)):
+                io.tool_warning(
+                    "MCP functionality requested but dependencies not installed. "
+                    "Install with: pip install pydantic-ai[mcp] fastmcp"
+                )
+        except Exception as e:
+            if args.verbose:
+                io.tool_warning(f"MCP setup failed: {e}")
+
     try:
         coder = Coder.create(
             main_model=main_model,

@@ -862,6 +862,36 @@ def get_parser(default_config_files, git_root):
     )
 
     ##########
+    group = parser.add_argument_group("MCP (Model Context Protocol)")
+    group.add_argument(
+        "--mcp-servers",
+        action="append",
+        metavar="NAME:TRANSPORT:COMMAND_OR_URL",
+        help=(
+            "MCP server configuration. Format: name:transport:command_or_url. "
+            "Examples: 'filesystem:stdio:mcp-server-filesystem /path', "
+            "'web:websocket:ws://localhost:8000/mcp'"
+        ),
+    )
+    group.add_argument(
+        "--mcp-config",
+        metavar="PATH",
+        help="Path to MCP configuration file (JSON format)",
+    )
+    group.add_argument(
+        "--enable-aider-mcp-server",
+        action="store_true",
+        help="Enable built-in aider MCP server with aider-specific tools",
+    )
+    group.add_argument(
+        "--mcp-server-port",
+        type=int,
+        default=8000,
+        metavar="PORT",
+        help="Port for built-in aider MCP server (default: 8000)",
+    )
+
+    ##########
     group = parser.add_argument_group("Deprecated model settings")
     # Add deprecated model shortcut arguments
     add_deprecated_model_args(parser, group)

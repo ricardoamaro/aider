@@ -1,0 +1,25 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "command": ["mcp-server-filesystem", "/path/to/allowed/directory"],
+      "enabled": true
+    },
+    {
+      "name": "web-search",
+      "transport": "stdio",
+      "command": ["mcp-server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your-api-key-here"
+      },
+      "enabled": false
+    },
+    {
+      "name": "database",
+      "transport": "websocket",
+      "url": "ws://localhost:9000/mcp",
+      "enabled": false
+    }
+  ]
+}
