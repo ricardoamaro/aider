@@ -420,6 +420,9 @@ class Coder:
         self.reasoning_tag_name = (
             self.main_model.reasoning_tag if self.main_model.reasoning_tag else REASONING_TAG
         )
+        
+        # MCP integration support
+        self.mcp_enabled = hasattr(main_model, 'has_mcp_support') and main_model.has_mcp_support()
 
         self.stream = stream and main_model.streaming
 
@@ -1794,12 +1797,22 @@ class Coder:
 
         completion = None
         try:
-            hash_object, completion = model.send_completion(
-                messages,
-                functions,
-                self.stream,
-                self.temperature,
-            )
+            # Use MCP-enhanced completion if available
+            if hasattr(model, 'send_completion_with_mcp') and hasattr(model, 'has_mcp_support') and model.has_mcp_support():
+                import asyncio
+                hash_object, completion = asyncio.run(model.send_completion_with_mcp(
+                    messages,
+                    functions,
+                    self.stream,
+                    self.temperature,
+                ))
+            else:
+                hash_object, completion = model.send_completion(
+                    messages,
+                    functions,
+                    self.stream,
+                    self.temperature,
+                )
             self.chat_completion_call_hashes.append(hash_object.hexdigest())
 
             if self.stream:

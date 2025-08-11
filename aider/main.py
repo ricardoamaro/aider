@@ -1000,6 +1000,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             if args.verbose:
                 io.tool_warning(f"MCP setup failed: {e}")
 
+    # Connect MCP client to model
+    if mcp_client and hasattr(main_model, 'set_mcp_client'):
+        main_model.set_mcp_client(mcp_client)
+
     try:
         coder = Coder.create(
             main_model=main_model,

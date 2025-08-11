@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import json5
 import yaml
@@ -349,6 +349,10 @@ class Model(ModelSettings):
             self.editor_model_name = None
         else:
             self.get_editor_model(editor_model, editor_edit_format)
+        
+        # MCP integration
+        self.mcp_client = None
+        self._mcp_agent = None
 
     def get_model_info(self, model):
         return model_info_manager.get_model_info(model)
@@ -1044,6 +1048,117 @@ class Model(ModelSettings):
                 continue
             except AttributeError:
                 return None
+
+    # MCP Integration Methods
+    def set_mcp_client(self, mcp_client):
+        """Set the MCP client for this model"""
+        self.mcp_client = mcp_client
+    
+    async def _get_mcp_agent(self):
+        """Get or create MCP-enhanced agent"""
+        if self._mcp_agent is None and self.mcp_client and self.mcp_client.is_connected():
+            self._mcp_agent = await self.mcp_client.create_agent(self.name)
+        return self._mcp_agent
+    
+    def _inject_mcp_context(self, messages: List[dict], mcp_context: dict) -> List[dict]:
+        """Inject MCP context into messages"""
+        if not mcp_context:
+            return messages
+        
+        # Create context message
+        context_parts = []
+        
+        if mcp_context.get("mcp_resources"):
+            context_parts.append("## Available MCP Resources:")
+            for resource in mcp_context["mcp_resources"]:
+                context_parts.append(f"- {resource['name']} ({resource['uri']})")
+                if len(resource.get('content', '')) > 200:
+                    # Truncate long content
+                    preview = resource['content'][:200] + "..."
+                    context_parts.append(f"  Preview: {preview}")
+        
+        if mcp_context.get("mcp_tools"):
+            context_parts.append("\n## Available MCP Tools:")
+            for tool in mcp_context["mcp_tools"]:
+                context_parts.append(f"- {tool['name']}: {tool['description']}")
+        
+        if context_parts:
+            context_message = {
+                "role": "system",
+                "content": "\n".join(context_parts)
+            }
+            
+            # Insert context after system message if it exists, otherwise at the beginning
+            if messages and messages[0].get("role") == "system":
+                messages.insert(1, context_message)
+            else:
+                messages.insert(0, context_message)
+        
+        return messages
+    
+    async def send_completion_with_mcp(self, messages, functions=None, stream=False, temperature=None):
+        """Enhanced completion with MCP support"""
+        if not self.mcp_client or not self.mcp_client.is_connected():
+            # Fallback to regular completion
+            return self.send_completion(messages, functions, stream, temperature)
+        
+        try:
+            # Get MCP context
+            query = ""
+            if messages:
+                # Use the last user message as context query
+                for msg in reversed(messages):
+                    if msg.get("role") == "user":
+                        query = msg.get("content", "")
+                        break
+            
+            mcp_context = await self.mcp_client.get_context(query)
+            
+            # Get MCP agent
+            agent = await self._get_mcp_agent()
+            
+            if agent:
+                # Use Pydantic AI agent with MCP support
+                enhanced_messages = self._inject_mcp_context(messages, mcp_context)
+                
+                # Convert to Pydantic AI format and run
+                if enhanced_messages:
+                    last_message = enhanced_messages[-1]["content"]
+                    result = await agent.run(last_message)
+                    
+                    # Convert back to expected format
+                    return self._convert_agent_response(result)
+            else:
+                # Fallback: inject context and use regular completion
+                enhanced_messages = self._inject_mcp_context(messages, mcp_context)
+                return self.send_completion(enhanced_messages, functions, stream, temperature)
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"MCP completion error: {e}")
+            # Fallback to regular completion
+            return self.send_completion(messages, functions, stream, temperature)
+    
+    def _convert_agent_response(self, agent_result):
+        """Convert Pydantic AI agent result to expected format"""
+        # This is a simplified conversion - may need adjustment based on actual response format
+        class MockResponse:
+            def __init__(self, content):
+                self.choices = [MockChoice(content)]
+        
+        class MockChoice:
+            def __init__(self, content):
+                self.message = MockMessage(content)
+        
+        class MockMessage:
+            def __init__(self, content):
+                self.content = str(agent_result)
+        
+        return None, MockResponse(agent_result)  # hash, response format
+    
+    def has_mcp_support(self) -> bool:
+        """Check if this model has MCP support enabled"""
+        return self.mcp_client is not None and self.mcp_client.is_connected()
 
 
 def register_models(model_settings_fnames):
