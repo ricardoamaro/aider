@@ -985,7 +985,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             
             if has_mcp_config:
                 import asyncio
-                connected = asyncio.run(mcp_client.setup_from_args(args))
+                connected = asyncio.run(mcp_client.setup_from_args(args, git_root))
                 if not connected:
                     mcp_client = None
         except ImportError:

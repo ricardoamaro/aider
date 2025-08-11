@@ -9,6 +9,7 @@ import asyncio
 from typing import Optional, Dict, Any, List
 
 from .manager import MCPManager, MCPServerConfig, parse_mcp_server_spec, load_mcp_config
+from .config import MCPConfigurationManager, load_mcp_configuration
 
 
 class MCPClient:
@@ -18,7 +19,7 @@ class MCPClient:
         self.manager = MCPManager(io)
         self.io = io
     
-    async def setup_from_args(self, args) -> bool:
+    async def setup_from_args(self, args, git_root: str = None) -> bool:
         """Setup MCP integration from command line arguments"""
         if not self.manager.is_available():
             if self.io:
@@ -29,20 +30,58 @@ class MCPClient:
         
         server_configs = []
         
-        # Load from config file
-        if hasattr(args, 'mcp_config') and args.mcp_config:
-            from pathlib import Path
-            config_path = Path(args.mcp_config)
-            server_configs.extend(load_mcp_config(config_path))
+        # Load from comprehensive configuration system
+        try:
+            config_manager = MCPConfigurationManager(git_root)
+            
+            # Load from specific config file if provided
+            if hasattr(args, 'mcp_config') and args.mcp_config:
+                from pathlib import Path
+                config_path = Path(args.mcp_config)
+                if config_path.exists():
+                    # Load specific file
+                    file_config = config_manager._load_config_file(config_path)
+                    server_configs.extend(file_config.servers)
+                else:
+                    if self.io:
+                        self.io.tool_error(f"MCP config file not found: {config_path}")
+            else:
+                # Load from standard configuration hierarchy
+                full_config = config_manager.load_configuration()
+                
+                # Validate configuration
+                issues = config_manager.validate_configuration(full_config)
+                if issues:
+                    if self.io:
+                        self.io.tool_warning("MCP configuration issues found:")
+                        for issue in issues:
+                            self.io.tool_warning(f"  - {issue}")
+                
+                # Use servers from configuration
+                server_configs.extend(full_config.servers)
+                
+                if self.io and full_config.servers:
+                    self.io.tool_output(f"Loaded {len(full_config.servers)} MCP server(s) from configuration")
         
-        # Add servers from CLI args
+        except Exception as e:
+            if self.io:
+                self.io.tool_warning(f"Failed to load MCP configuration: {e}")
+        
+        # Add servers from CLI args (these override config file)
         if hasattr(args, 'mcp_servers') and args.mcp_servers:
+            cli_configs = []
             for server_spec in args.mcp_servers:
                 config = parse_mcp_server_spec(server_spec)
                 if config:
-                    server_configs.append(config)
+                    cli_configs.append(config)
                 elif self.io:
                     self.io.tool_error(f"Invalid MCP server specification: {server_spec}")
+            
+            # CLI servers override config file servers with same name
+            for cli_config in cli_configs:
+                # Remove any existing server with same name
+                server_configs = [s for s in server_configs if s.name != cli_config.name]
+                server_configs.append(cli_config)
         
         # Handle built-in aider MCP server
         if hasattr(args, 'enable_aider_mcp_server') and args.enable_aider_mcp_server:

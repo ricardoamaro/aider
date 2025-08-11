@@ -1,4 +1,12 @@
 {
+  "settings": {
+    "enabled": true,
+    "timeout": 30,
+    "max_retries": 3,
+    "context_limit": 10000,
+    "cache_ttl": 300,
+    "log_level": "INFO"
+  },
   "servers": [
     {
       "name": "filesystem",
@@ -20,6 +28,12 @@
       "transport": "websocket",
       "url": "ws://localhost:9000/mcp",
       "enabled": false
+    },
+    {
+      "name": "aider-tools",
+      "transport": "websocket",
+      "url": "ws://localhost:8000/mcp",
+      "enabled": true
     }
   ]
 }
