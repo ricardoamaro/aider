@@ -100,6 +100,15 @@ Automatically lint and test your code every time aider makes changes. Aider can 
 <a href="https://aider.chat/docs/usage/copypaste.html"><img src="https://aider.chat/assets/icons/content-copy.svg" width="32" height="32" align="left" valign="middle" style="margin-right:10px"></a>
 Work with any LLM via its web chat interface. Aider streamlines copy/pasting code context and edits back and forth with a browser.
 
+<br>
+
+### [MCP Integration](https://aider.chat/docs/mcp.html)
+
+<a href="https://aider.chat/docs/mcp.html"><img src="https://aider.chat/assets/icons/link-variant.svg" width="32" height="32" align="left" valign="middle" style="margin-right:10px"></a>
+Connect to external tools and services via the Model Context Protocol (MCP). Access file systems, databases, web APIs, and more to enhance AI capabilities.
+
+<br>
+
 ## Getting Started
 
 ```bash
